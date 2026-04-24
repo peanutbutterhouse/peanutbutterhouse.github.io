@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Viewer Cloud</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #1e1e1e; color: #fff; overflow-x: hidden; }
+        .container { width: 90%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
+        
+        /* Auth UI */
+        .auth-bar { position: absolute; top: 20px; right: 20px; display: flex; align-items: center; gap: 10px; z-index: 10; }
+        .user-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #444; }
+        .btn-auth { background: #333; color: white; border: 1px solid #444; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.2s; }
+        .btn-auth:hover { background: #007acc; border-color: #007acc; }
+
+        textarea { width: 100%; padding: 15px; border: 1px solid #333; border-radius: 25px; font-family: 'Fira Code', monospace; font-size: 14px; resize: none; outline: none; background: #252526; color: #d4d4d4; box-sizing: border-box; height: 50px; text-align: center; }
+        .controls-outer { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .toggle-group { display: flex; background: #252526; border-radius: 20px; padding: 2px; border: 1px solid #333; }
+        .toggle-group input { display: none; }
+        .toggle-group label { padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 15px; color: #666; transition: 0.2s; white-space: nowrap; }
+        .toggle-group input:checked + label { background: #007acc; color: #fff; }
+        
+        #history-section { width: 100%; margin-top: 10px; background: #252526; border-radius: 15px; border: 1px solid #333; padding: 15px; display: none; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; color: #888; font-weight: bold; text-transform: uppercase; }
+        .clear-btn { cursor: pointer; color: #ff4d4d; font-size: 10px; }
+        #history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
+        .history-item { padding: 8px 10px; font-size: 13px; border-bottom: 1px solid #333; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #aaa; transition: 0.2s; }
+        .history-item:hover { background: #333; color: #fff; }
+        
+        #viewer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; z-index: 100; }
+        #viewer iframe { width: 100%; height: 100%; border: none; }
+        #back-line { position: fixed; right: 0; top: 0; width: 15px; height: 100%; z-index: 200; cursor: pointer; background: transparent; display: none; }
+        #back-btn { position: fixed; top: 20px; right: 20px; width: 32px; height: 32px; background: rgba(37, 37, 38, 0.8); border: 1px solid #333; border-radius: 50%; z-index: 200; cursor: pointer; display: none; align-items: center; justify-content: center; color: #fff; font-size: 18px; transition: 0.2s; backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body>
+
+    <div class="auth-bar">
+        <div id="user-info" style="display:none;"><img id="user-photo" class="user-img"></div>
+        <button id="auth-button" class="btn-auth">Login with Google</button>
+    </div>
+
+    <div class="container" id="main-container">
+        <textarea id="editor" placeholder="Type URL and press Enter"></textarea>
+        <div class="controls-outer">
+            <div class="toggle-group"><input type="radio" id="incog-on" name="incognito" value="on"><label for="incog-on">INCOGNITO</label><input type="radio" id="incog-off" name="incognito" value="off" checked><label for="incog-off">NORMAL</label></div>
+            <div class="toggle-group"><input type="radio" id="ad-on" name="ads" value="on" checked><label for="ad-on">AD BLOCKING</label><input type="radio" id="ad-off" name="ads" value="off"><label for="ad-off">OFF</label></div>
+            <div class="toggle-group"><input type="radio" id="main-mode" name="target" value="main" checked><label for="main-mode">MAIN</label><input type="radio" id="blank-mode" name="target" value="blank"><label for="blank-mode">BLANK</label></div>
+            <div class="toggle-group"><input type="radio" id="ui-line" name="backui" value="line" checked><label for="ui-line">LINE</label><input type="radio" id="ui-btn" name="backui" value="btn"><label for="ui-btn">BUTTON</label></div>
+        </div>
+        <div id="history-section">
+            <div class="history-header">
+                <span id="history-label">Recent History</span>
+                <span class="clear-btn" id="clear-btn">Clear All</span>
+            </div>
+            <div id="history-list"></div>
+        </div>
+    </div>
+
+    <div id="viewer">
+        <div id="back-line" title="Double click to go back"></div>
+        <div id="back-btn" title="Click to go back">✕</div>
+        <div id="content-area" style="width:100%; height:100%;"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyAWhoEU090a3YIQzxrBdOaV6hMI37yvC6s",
+          authDomain: "web-view-2dbd5.firebaseapp.com",
+          projectId: "web-view-2dbd5",
+          storageBucket: "web-view-2dbd5.firebasestorage.app",
+          messagingSenderId: "511957552236",
+          appId: "1:511957552236:web:3c3895b6287d12dc99dc49",
+          measurementId: "G-13V2GP69CT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let currentUser = null;
+
+        const authBtn = document.getElementById('auth-button');
+        const userInfo = document.getElementById('user-info');
+        const userPhoto = document.getElementById('user-photo');
+        const historyList = document.getElementById('history-list');
+        const historySection = document.getElementById('history-section');
+        const editor = document.getElementById('editor');
+
+        // Handle Login/Logout
+        authBtn.onclick = () => {
+            if (currentUser) signOut(auth);
+            else signInWithPopup(auth, provider).catch(err => alert("Login failed. Make sure you authorized your domain in Firebase!"));
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                authBtn.innerText = "Logout";
+                userInfo.style.display = "block";
+                userPhoto.src = user.photoURL;
+                document.getElementById('history-label').innerText = "Cloud History";
+                listenToCloudHistory(user.uid);
+            } else {
+                authBtn.innerText = "Login with Google";
+                userInfo.style.display = "none";
+                document.getElementById('history-label').innerText = "Local History";
+                renderLocalHistory();
+            }
+        });
+
+        async function saveURL(url) {
+            const isIncognito = document.querySelector('input[name="incognito"]:checked').value === 'on';
+            if (isIncognito) return;
+
+            if (currentUser) {
+                const userRef = doc(db, "histories", currentUser.uid);
+                await setDoc(userRef, { urls: arrayUnion(url) }, { merge: true });
+            } else {
+                let history = JSON.parse(localStorage.getItem('browser_history') || '[]');
+                history = [url, ...history.filter(u => u !== url)].slice(0, 20);
+                localStorage.setItem('browser_history', JSON.stringify(history));
+                renderLocalHistory();
+            }
+        }
+
+        function listenToCloudHistory(uid) {
+            onSnapshot(doc(db, "histories", uid), (doc) => {
+                if (doc.exists()) {
+                    const list = doc.data().urls || [];
+                    displayHistory([...list].reverse());
+                }
+            });
+        }
+
+        function renderLocalHistory() {
+            displayHistory(JSON.parse(localStorage.getItem('browser_history') || '[]'));
+        }
+
+        function displayHistory(list) {
+            if (list.length === 0) { historySection.style.display = 'none'; return; }
+            historySection.style.display = 'block';
+            historyList.innerHTML = list.map(url => `
+                <div class="history-item" onclick="window.launchURL('${url}')">${url}</div>
+            `).join('');
+        }
+
+        document.getElementById('clear-btn').onclick = async () => {
+            if (currentUser) await setDoc(doc(db, "histories", currentUser.uid), { urls: [] });
+            else { localStorage.removeItem('browser_history'); renderLocalHistory(); }
+        };
+
+        window.launchURL = (url) => {
+            if (!url) return;
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+            saveURL(url);
+
+            const mode = document.querySelector('input[name="target"]:checked').value;
+            const adBlock = document.querySelector('input[name="ads"]:checked').value;
+            const backUIType = document.querySelector('input[name="backui"]:checked').value;
+
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.style.width = '100%'; iframe.style.height = '100%'; iframe.style.border = 'none';
+            iframe.setAttribute('allowfullscreen', '');
+
+            if (adBlock === 'on') {
+                iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-same-origin');
+            }
+
+            if (mode === 'blank') {
+                const win = window.open('about:blank', '_blank');
+                win.document.body.style.margin = '0';
+                win.document.body.appendChild(iframe);
+            } else {
+                document.getElementById('main-container').style.display = 'none';
+                document.getElementById('viewer').style.display = 'block';
+                document.getElementById('content-area').innerHTML = '';
+                document.getElementById('content-area').appendChild(iframe);
+                if (backUIType === 'line') document.getElementById('back-line').style.display = 'block';
+                else document.getElementById('back-btn').style.display = 'flex';
+            }
+        };
+
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.launchURL(editor.value.trim());
+            }
+        });
+
+        // Close viewer
+        const closeViewer = () => {
+            document.getElementById('viewer').style.display = 'none';
+            document.getElementById('content-area').innerHTML = '';
+            document.getElementById('main-container').style.display = 'flex';
+            document.getElementById('back-line').style.display = 'none';
+            document.getElementById('back-btn').style.display = 'none';
+        };
+
+        document.getElementById('back-line').ondblclick = closeViewer;
+        document.getElementById('back-btn').onclick = closeViewer;
+    </script>
+</body>
+</html>
