@@ -13,21 +13,31 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
         .container { width: 90%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
+        
+        /* Auth UI */
         .auth-bar { position: absolute; top: 20px; right: 20px; display: flex; align-items: center; gap: 10px; z-index: 10; }
         .user-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #444; }
-        .btn-auth { background: #333; color: white; border: 1px solid #444; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .btn-auth { background: #333; color: white; border: 1px solid #444; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.2s; }
+        .btn-auth:hover { background: #007acc; border-color: #007acc; }
+
         textarea { width: 100%; padding: 15px; border: 1px solid #333; border-radius: 25px; font-family: 'Fira Code', monospace; font-size: 14px; resize: none; outline: none; background: #252526; color: #d4d4d4; box-sizing: border-box; height: 50px; text-align: center; }
+        
         .controls-outer { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
         .toggle-group { display: flex; background: #252526; border-radius: 20px; padding: 2px; border: 1px solid #333; }
         .toggle-group input { display: none; }
-        .toggle-group label { padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 15px; color: #666; transition: 0.2s; }
+        .toggle-group label { padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 15px; color: #666; transition: 0.2s; white-space: nowrap; }
         .toggle-group input:checked + label { background: #007acc; color: #fff; }
+        
         #history-section { width: 100%; margin-top: 10px; background: #252526; border-radius: 15px; border: 1px solid #333; padding: 15px; display: none; }
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; color: #888; font-weight: bold; }
-        .history-item { padding: 8px 10px; font-size: 13px; border-bottom: 1px solid #333; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #aaa; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; color: #888; font-weight: bold; text-transform: uppercase; }
+        .clear-btn { cursor: pointer; color: #ff4d4d; font-size: 10px; }
+        #history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
+        .history-item { padding: 8px 10px; font-size: 13px; border-bottom: 1px solid #333; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #aaa; transition: 0.2s; }
+        .history-item:hover { background: #333; color: #fff; }
+        
         #viewer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; z-index: 100; }
         #viewer iframe { width: 100%; height: 100%; border: none; }
-        #back-btn { position: fixed; top: 20px; right: 20px; width: 32px; height: 32px; background: rgba(37, 37, 38, 0.8); border: 1px solid #333; border-radius: 50%; z-index: 200; cursor: pointer; display: none; align-items: center; justify-content: center; color: #fff; }
+        #back-btn { position: fixed; top: 20px; right: 20px; width: 32px; height: 32px; background: rgba(37, 37, 38, 0.8); border: 1px solid #333; border-radius: 50%; z-index: 200; cursor: pointer; display: none; align-items: center; justify-content: center; color: #fff; font-size: 18px; transition: 0.2s; backdrop-filter: blur(4px); }
     </style>
 </head>
 <body>
@@ -44,19 +54,35 @@
 
     <div class="container" id="main-container">
         <textarea id="editor" placeholder="Type URL and press Enter"></textarea>
+        
         <div class="controls-outer">
-            <div class="toggle-group"><input type="radio" id="incog-on" name="incognito" value="on"><label for="incog-on">INCOGNITO</label><input type="radio" id="incog-off" name="incognito" value="off" checked><label for="incog-off">NORMAL</label></div>
-            <div class="toggle-group"><input type="radio" id="ad-on" name="ads" value="on" checked><label for="ad-on">AD BLOCKING</label><input type="radio" id="ad-off" name="ads" value="off"><label for="ad-off">OFF</label></div>
-            <div class="toggle-group"><input type="radio" id="main-mode" name="target" value="main" checked><label for="main-mode">MAIN</label><input type="radio" id="blank-mode" name="target" value="blank"><label for="blank-mode">BLANK</label></div>
+            <!-- Normal/Incognito Toggle -->
+            <div class="toggle-group">
+                <input type="radio" id="incog-on" name="incognito" value="on">
+                <label for="incog-on">INCOGNITO</label>
+                <input type="radio" id="incog-off" name="incognito" value="off" checked>
+                <label for="incog-off">NORMAL</label>
+            </div>
+            <!-- Ad Blocking Toggle -->
+            <div class="toggle-group">
+                <input type="radio" id="ad-on" name="ads" value="on" checked>
+                <label for="ad-on">AD BLOCKING</label>
+                <input type="radio" id="ad-off" name="ads" value="off">
+                <label for="ad-off">OFF</label>
+            </div>
         </div>
+
         <div id="history-section">
-            <div class="history-header"><span>Cloud History</span><span id="clear-btn" style="color:#ff4d4d; cursor:pointer;">Clear</span></div>
+            <div class="history-header">
+                <span id="history-label">Recent History</span>
+                <span class="clear-btn" id="clear-btn">Clear All</span>
+            </div>
             <div id="history-list"></div>
         </div>
     </div>
 
     <div id="viewer">
-        <div id="back-btn">✕</div>
+        <div id="back-btn" title="Click to go back">✕</div>
         <div id="content-area" style="width:100%; height:100%;"></div>
     </div>
 
@@ -83,30 +109,39 @@
         const rtdb = getDatabase(app);
         const provider = new GoogleAuthProvider();
 
-        // --- LIVE COUNTER LOGIC ---
+        // --- LIVE COUNTER ---
         const userCountSpan = document.getElementById('user-count');
         const myPresenceRef = push(ref(rtdb, 'presence'));
-        
-        // When I connect, add me to the list. When I leave, remove me.
         set(myPresenceRef, true);
         onDisconnect(myPresenceRef).remove();
-
-        // Listen for total count
-        onValue(ref(rtdb, 'presence'), (snapshot) => {
-            const count = snapshot.size || (snapshot.val() ? Object.keys(snapshot.val()).length : 0);
+        onValue(ref(rtdb, 'presence'), (snap) => {
+            const count = snap.size || (snap.val() ? Object.keys(snap.val()).length : 0);
             userCountSpan.innerText = count;
         });
 
-        // --- AUTH & HISTORY LOGIC ---
+        // --- AUTH & HISTORY ---
         let currentUser = null;
+        const authBtn = document.getElementById('auth-button');
+        const userInfo = document.getElementById('user-info');
+        const userPhoto = document.getElementById('user-photo');
+        const historyList = document.getElementById('history-list');
+        const historySection = document.getElementById('history-section');
+        const editor = document.getElementById('editor');
+
+        authBtn.onclick = () => currentUser ? signOut(auth) : signInWithPopup(auth, provider);
+
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
             if (user) {
-                document.getElementById('user-info').style.display = "block";
-                document.getElementById('user-photo').src = user.photoURL;
+                authBtn.innerText = "Logout";
+                userInfo.style.display = "block";
+                userPhoto.src = user.photoURL;
+                document.getElementById('history-label').innerText = "Cloud History";
                 listenToHistory(user.uid);
             } else {
-                document.getElementById('user-info').style.display = "none";
+                authBtn.innerText = "Login with Google";
+                userInfo.style.display = "none";
+                document.getElementById('history-label').innerText = "Local History";
                 renderLocal();
             }
         });
@@ -117,8 +152,9 @@
             
             const isIncog = document.querySelector('input[name="incognito"]:checked').value === 'on';
             if (!isIncog) {
-                if (currentUser) await setDoc(doc(db, "histories", currentUser.uid), { urls: arrayUnion(url) }, { merge: true });
-                else {
+                if (currentUser) {
+                    await setDoc(doc(db, "histories", currentUser.uid), { urls: arrayUnion(url) }, { merge: true });
+                } else {
                     let h = JSON.parse(localStorage.getItem('h') || '[]');
                     h = [url, ...h.filter(x => x !== url)].slice(0,20);
                     localStorage.setItem('h', JSON.stringify(h));
@@ -126,15 +162,17 @@
                 }
             }
 
-            const mode = document.querySelector('input[name="target"]:checked').value;
-            if (mode === 'blank') {
-                window.open(url, '_blank');
-            } else {
-                document.getElementById('main-container').style.display = 'none';
-                document.getElementById('viewer').style.display = 'block';
-                document.getElementById('back-btn').style.display = 'flex';
-                document.getElementById('content-area').innerHTML = `<iframe src="${url}" allowfullscreen></iframe>`;
-            }
+            const adBlock = document.querySelector('input[name="ads"]:checked').value;
+            
+            document.getElementById('main-container').style.display = 'none';
+            document.getElementById('viewer').style.display = 'block';
+            document.getElementById('back-btn').style.display = 'flex';
+            
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            if (adBlock === 'on') iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-same-origin');
+            document.getElementById('content-area').innerHTML = '';
+            document.getElementById('content-area').appendChild(iframe);
         };
 
         function listenToHistory(uid) {
@@ -142,15 +180,18 @@
         }
         function renderLocal() { display(JSON.parse(localStorage.getItem('h') || '[]')); }
         function display(list) {
-            const container = document.getElementById('history-section');
-            if (list.length === 0) { container.style.display = 'none'; return; }
-            container.style.display = 'block';
-            document.getElementById('history-list').innerHTML = list.map(u => `<div class="history-item" onclick="launchURL('${u}')">${u}</div>`).join('');
+            if (list.length === 0) { historySection.style.display = 'none'; return; }
+            historySection.style.display = 'block';
+            historyList.innerHTML = list.map(u => `<div class="history-item" onclick="launchURL('${u}')">${u}</div>`).join('');
         }
 
-        document.getElementById('editor').onkeydown = (e) => { if(e.key==='Enter') launchURL(e.target.value); };
+        document.getElementById('clear-btn').onclick = async () => {
+            if (currentUser) await setDoc(doc(db, "histories", currentUser.uid), { urls: [] });
+            else { localStorage.removeItem('h'); renderLocal(); }
+        };
+
+        editor.onkeydown = (e) => { if(e.key==='Enter') launchURL(editor.value.trim()); };
         document.getElementById('back-btn').onclick = () => location.reload();
-        document.getElementById('auth-button').onclick = () => currentUser ? signOut(auth) : signInWithPopup(auth, provider);
     </script>
 </body>
 </html>
